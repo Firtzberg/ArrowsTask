@@ -1,0 +1,8 @@
+<resources>
+    <declare-styleable name="ArrowsView">
+        <attr name="upArrowDrawable" format="color|reference" />
+        <attr name="downArrowDrawable" format="color|reference" />
+        <attr name="leftArrowDrawable" format="color|reference" />
+        <attr name="rightArrowDrawable" format="color|reference" />
+    </declare-styleable>
+</resources>
