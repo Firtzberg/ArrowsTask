@@ -16,9 +16,23 @@ public class MainActivity extends Activity {
         setContentView(R.layout.activity_main);
     }
 
+    /**
+     * Starts the Task Activity for result.
+     *
+     * @param v View which caused this method to b invoked.
+     */
     public void startTask(View v) {
         Intent intent = new Intent(this, TaskActivity.class);
         startActivityForResult(intent, REQUEST_CODE_TASK);
+    }
+
+    /**
+     * Displays leader board.
+     *
+     * @param v View which caused this method to b invoked.
+     */
+    public void displayLeaderBoard(View v) {
+
     }
 
     @Override
