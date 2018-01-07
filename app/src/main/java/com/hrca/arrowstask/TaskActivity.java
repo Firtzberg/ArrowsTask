@@ -5,6 +5,7 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.os.CountDownTimer;
 import android.support.annotation.NonNull;
+import android.widget.TextView;
 
 import com.hrca.arrowstask.ArrowsView.ArrowsViewListener;
 
@@ -15,7 +16,7 @@ public class TaskActivity extends Activity implements ArrowsViewListener {
     /**
      * Total duration of task in seconds.
      */
-    public static final int TASK_DURATION = 10;
+    public static final int TASK_DURATION = 60;
 
     public static final String PARCELABLE_HITS_KEY = "hit";
     public static final String PARCELABLE_MISSES_KEY = "miss";
@@ -36,6 +37,14 @@ public class TaskActivity extends Activity implements ArrowsViewListener {
      * Remaining time for timer to finish.
      */
     private int remainingTime = TASK_DURATION * 1000;
+    /**
+     * View to display remaining time.
+     */
+    private TextView timeView;
+    /**
+     * View to display score.
+     */
+    private TextView scoreView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -44,6 +53,8 @@ public class TaskActivity extends Activity implements ArrowsViewListener {
 
         ArrowsView arrows = (ArrowsView) findViewById(R.id.gridview);
         arrows.setListener(this);
+        timeView = (TextView) findViewById(R.id.seconds);
+        scoreView = (TextView) findViewById(R.id.score);
     }
 
     @Override
@@ -52,13 +63,17 @@ public class TaskActivity extends Activity implements ArrowsViewListener {
 
         // create timer with remaining time
         timer = new Timer(remainingTime);
-        timer.start();
+        if (hits != 0 || misses != 0)
+            timer.go();
+        //update displayed values
+        timeView.setText(String.valueOf(remainingTime / 1000));
+        scoreView.setText(String.valueOf(hits - misses));
     }
 
     @Override
     public void onPause() {
         // Destroy timer and update remaining time.
-        timer.cancel();
+        timer.stop();
         remainingTime = timer.getRemainingTime();
         timer = null;
 
@@ -83,10 +98,14 @@ public class TaskActivity extends Activity implements ArrowsViewListener {
 
     @Override
     public void onArrowClicked(boolean hit) {
+        timer.go();
+
         if (hit)
             hits++;
         else
             misses++;
+
+        scoreView.setText(String.valueOf(hits - misses));
     }
 
     /**
@@ -97,10 +116,28 @@ public class TaskActivity extends Activity implements ArrowsViewListener {
          * Time at which the activity should finish.
          */
         long expirationTime;
+        int remainingMilliseconds;
+        boolean isRunning = false;
 
         public Timer(int remainingMilliseconds) {
             super(remainingMilliseconds, 1000);
-            expirationTime = System.currentTimeMillis() + remainingMilliseconds;
+            this.remainingMilliseconds = remainingMilliseconds;
+        }
+
+        public void go() {
+            if (!isRunning) {
+                super.start();
+                isRunning = true;
+                expirationTime = System.currentTimeMillis() + this.remainingMilliseconds;
+            }
+        }
+
+        public void stop() {
+            if (isRunning) {
+                super.cancel();
+                remainingMilliseconds = getRemainingTime();
+            }
+            isRunning = false;
         }
 
         /**
@@ -109,19 +146,23 @@ public class TaskActivity extends Activity implements ArrowsViewListener {
          * @return Remaining time in milliseconds.
          */
         public int getRemainingTime() {
-            return (int) (expirationTime - System.currentTimeMillis());
+            if (isRunning)
+                return (int) (expirationTime - System.currentTimeMillis());
+            else
+                return remainingMilliseconds;
         }
 
         @Override
         public void onTick(long l) {
             //update time
+            timeView.setText(String.valueOf(getRemainingTime() / 1000));
         }
 
         @Override
         public void onFinish() {
             // Set hits into result and finish activity.
             Intent resultData = new Intent();
-            resultData.putExtra(PARCELABLE_HITS_KEY, hits);
+            resultData.putExtra(PARCELABLE_HITS_KEY, hits - misses);
             TaskActivity.this.setResult(RESULT_OK, resultData);
             TaskActivity.this.finish();
         }
