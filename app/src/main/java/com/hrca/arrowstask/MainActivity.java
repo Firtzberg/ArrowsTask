@@ -3,6 +3,7 @@ package com.hrca.arrowstask;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
@@ -10,14 +11,14 @@ import android.preference.PreferenceManager;
 import android.support.annotation.NonNull;
 import android.view.View;
 
-import com.google.android.gms.auth.api.Auth;
 import com.google.android.gms.auth.api.signin.GoogleSignIn;
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount;
 import com.google.android.gms.auth.api.signin.GoogleSignInClient;
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions;
-import com.google.android.gms.auth.api.signin.GoogleSignInResult;
+import com.google.android.gms.common.api.ApiException;
 import com.google.android.gms.games.Games;
 import com.google.android.gms.tasks.OnCompleteListener;
+import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
 import com.google.android.gms.tasks.Task;
 
@@ -28,7 +29,9 @@ public class MainActivity extends Activity {
     public static final int REQUEST_CODE_SIGN_IN_SUBMIT = 1479;
     public static final int REQUEST_CODE_LEADERBOARD_UI = 9004;
     public static final String SHARED_PREFERENCES_SCORE_COUNT = "n";
+    public static final String PARCELABLE_SCORE_TO_DISPLAY_KEY = "score";
     public GoogleSignInAccount signedInAccount = null;
+    public int scoreToDisplay = Integer.MIN_VALUE;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -40,8 +43,20 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         signedInAccount = GoogleSignIn.getLastSignedInAccount(this);
+        submitScores();
         if (signedInAccount == null)
             signInSilently();
+        displayScore();
+    }
+
+    /**
+     * Returns configured sign in options.
+     * @return Google sign in options.
+     */
+    private GoogleSignInOptions getSignInOptions() {
+        return new GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_GAMES_SIGN_IN)
+                .requestIdToken(getString(R.string.request_token))
+                .build();
     }
 
     /**
@@ -49,7 +64,7 @@ public class MainActivity extends Activity {
      */
     private void signInSilently() {
         GoogleSignInClient signInClient = GoogleSignIn.getClient(this,
-                GoogleSignInOptions.DEFAULT_GAMES_SIGN_IN);
+                getSignInOptions());
         signInClient.silentSignIn().addOnCompleteListener(this,
                 new OnCompleteListener<GoogleSignInAccount>() {
                     @Override
@@ -72,7 +87,7 @@ public class MainActivity extends Activity {
      */
     private void startSignInIntent(int requestCode) {
         GoogleSignInClient signInClient = GoogleSignIn.getClient(this,
-                GoogleSignInOptions.DEFAULT_GAMES_SIGN_IN);
+                getSignInOptions());
         Intent intent = signInClient.getSignInIntent();
         startActivityForResult(intent, requestCode);
     }
@@ -103,6 +118,13 @@ public class MainActivity extends Activity {
                         public void onSuccess(Intent intent) {
                             startActivityForResult(intent, REQUEST_CODE_LEADERBOARD_UI);
                         }
+                    })
+                    .addOnFailureListener(new OnFailureListener() {
+                        @Override
+                        public void onFailure(@NonNull Exception e) {
+                            new AlertDialog.Builder(MainActivity.this).setMessage(e.getMessage())
+                                    .setNeutralButton(android.R.string.ok, null).show();
+                        }
                     });
         }
     }
@@ -111,16 +133,15 @@ public class MainActivity extends Activity {
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == REQUEST_CODE_SIGN_IN_LEADERBOARD || requestCode == REQUEST_CODE_SIGN_IN_SUBMIT) {
-            GoogleSignInResult result = Auth.GoogleSignInApi.getSignInResultFromIntent(data);
-            if (result.isSuccess()) {
+            Task<GoogleSignInAccount> task = GoogleSignIn.getSignedInAccountFromIntent(data);
+            try {
                 // The signed in account is stored in the result.
-                signedInAccount = result.getSignInAccount();
-                submitScores();
+                signedInAccount = task.getResult(ApiException.class);
                 if (requestCode == REQUEST_CODE_SIGN_IN_LEADERBOARD) {
                     displayLeaderBoard(null);
                 }
-            } else {
-                String message = result.getStatus().getStatusMessage();
+            } catch (ApiException apiException) {
+                String message = apiException.getMessage();
                 if (message != null && !message.isEmpty()) {
                     new AlertDialog.Builder(this).setMessage(message)
                             .setNeutralButton(android.R.string.ok, null).show();
@@ -134,11 +155,6 @@ public class MainActivity extends Activity {
                 // The user completed the task
                 int hits = data.getIntExtra(TaskActivity.PARCELABLE_HITS_KEY, 0);
                 queueScore(hits);
-                if (signedInAccount != null) {
-                    submitScores();
-                } else {
-                    startSignInIntent(REQUEST_CODE_SIGN_IN_SUBMIT);
-                }
             }
         }
     }
@@ -161,6 +177,8 @@ public class MainActivity extends Activity {
         editor.putInt(SHARED_PREFERENCES_SCORE_COUNT, count + 1);
 
         editor.commit();
+
+        scoreToDisplay = score;
     }
 
     /**
@@ -184,5 +202,39 @@ public class MainActivity extends Activity {
         editor.putInt(SHARED_PREFERENCES_SCORE_COUNT, 0);
 
         editor.apply();
+    }
+
+    /**
+     * Displays score to be displayed if any.
+     *
+     * @return True if score was displayed.
+     */
+    public boolean displayScore() {
+        if (scoreToDisplay != Integer.MIN_VALUE) {
+            new AlertDialog.Builder(this).setMessage(String.valueOf(scoreToDisplay))
+                    .setNeutralButton(android.R.string.ok, new DialogInterface.OnClickListener() {
+                        @Override
+                        public void onClick(DialogInterface dialogInterface, int i) {
+                            if (signedInAccount == null) {
+                                startSignInIntent(REQUEST_CODE_SIGN_IN_SUBMIT);
+                            }
+                        }
+                    })
+                    .show();
+            scoreToDisplay = Integer.MIN_VALUE;
+            return true;
+        }
+        return false;
+    }
+
+    @Override
+    public void onSaveInstanceState(@NonNull Bundle savedInstanceState) {
+        if (scoreToDisplay != Integer.MIN_VALUE)
+            savedInstanceState.putInt(PARCELABLE_SCORE_TO_DISPLAY_KEY, scoreToDisplay);
+    }
+
+    @Override
+    public void onRestoreInstanceState(@NonNull Bundle savedInstanceState) {
+        scoreToDisplay = savedInstanceState.getInt(PARCELABLE_SCORE_TO_DISPLAY_KEY, Integer.MIN_VALUE);
     }
 }

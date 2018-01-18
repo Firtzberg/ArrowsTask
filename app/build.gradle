@@ -7,10 +7,12 @@ android {
     defaultConfig {
         applicationId "com.hrca.arrowstask"
         resValue "string", "leaderboard_id", "CgkI78fe5aYMEAIQAA"
+        resValue "string", "app_id", "422730769391"
+        resValue "string", "request_token", "422730769391-d8lv198kf8ntsmt4aqj58v25hg7ebpoj.apps.googleusercontent.com"
         minSdkVersion 14
         targetSdkVersion 23
-        versionCode 1
-        versionName "1.0"
+        versionCode 7
+        versionName "1.6"
     }
     buildTypes {
         release {
